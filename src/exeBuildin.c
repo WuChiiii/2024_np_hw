@@ -114,7 +114,6 @@ void exeBuildin(command_t *cmd){
     para_read=tmp;
     if(cmd->paramater != NULL){
         if((start = strsep(&para_read," "))!=NULL){
-            printf("%s\n",start);
             if(strcmp(start, "|") != 0){
                 strcpy(tmpstr, start);
             }

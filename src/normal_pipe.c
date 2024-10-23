@@ -1,119 +1,234 @@
 #include "config.h"
 
-
-void dochild(int fd[], char *commandArgv[],char *path, command_t *cmd){
-    // printf("now is step5 \n");
-    close(fd[READ_END]);
-    dup2(fd[WRITE_END], STDOUT_FILENO);
-    // printf("fff %s\n", cmd->command);
-    if(strcmp(cmd->command, "printenv") == 0 || strcmp(cmd->command, "help") == 0){//pipe 配上 buildin
-        exeBuildin(cmd);
-        exit(EXIT_SUCCESS);
+int count_pipes(char *str){
+    int count = 0;  // 記錄 '|' 出現的次數
+    while (*str != '\0') {  // 迴圈直到字串結束 ('\0' 字元)
+        if (*str == '|') {
+            count++;
+        }
+        str++;  // 移動到下一個字元
     }
-    if (execv(path, commandArgv) < 0) {
-        perror("execv child");
-        exit(EXIT_FAILURE);
-    }
-    exit(EXIT_SUCCESS);
+    return count;
 }
 
-void doparent(int fd[], char * commandArgv[],char *path, command_t *cmd){
-    // printf("now is step7 \n");
-    switch(fork()) {
-        case -1:
-            perror("fork parent fork");
-            exit(EXIT_FAILURE);
-        case 0:
-            //input from sibling 
-            close(fd[WRITE_END]);
-            dup2(fd[READ_END], STDIN_FILENO);
-            close(fd[READ_END]);
-            if (execv(path, commandArgv) < 0) {
-                perror("execv parent");
-                exit(EXIT_FAILURE);
-            };
-            exit(EXIT_SUCCESS);
-        default:
-            close(fd[READ_END]);
-            close(fd[WRITE_END]);
-            break;
+int check_access(char * path){
+    if (access(path, X_OK) != 0) {
+        // printf("Unknown command: [%s].\n",argVec1[0]);
+        return -1;
     }
+    return 0;
 }
 
 
 int exepipe(command_t *cmd){
-    char *argVec[10];
-    char *argVec1[10];//多一個cnt個二維陣列
-    char path1[1024];
-    char path2[1024];//path，2個都要snprintf();
-    char buff[1024];
-    char *tmpvar = malloc(strlen(cmd->paramater) + 1);
-    char *tmp;
-    char *start,*pos2,*command2;
-    int cnt=1;
-    int fd[2];
+    char countpipe[100];//多一個cnt個二維陣列
+    char buff[100];
+    char *tmpvar = malloc(100);
+    char *pos;
+    if (tmpvar == NULL) {
+        perror("malloc failed");
+        return -1;
+    }
+    char pointer[100];
+    int cntnum=0;
+    int curr=0;
+    int number_of_pipe;
+    int **fd;
+    int firstflag=1;
+    // //先數有幾個 | 出現 然後每次loop就丟一個新的 argv以及path
     getcwd(buff, sizeof(buff));
-    strcpy(tmpvar,cmd->paramater);
-    argVec[0] = malloc(strlen(cmd->command) + 1);//前半指令放command
-    strcpy(argVec[0], cmd->command);
-    command2 = strchr(tmpvar, '|');//後半指令
-    command2+=2;
-    
-    // printf("now is step1 %s\n",tmpvar);
-    while ((start = strsep(&tmpvar, " ")) != NULL) {
-        if(start>command2) break;
-        if (*start != '\0') {
-            if(strcmp(start,"|") == 0) break;
-            argVec[cnt] = malloc(strlen(start) + 1);
-            strcpy(argVec[cnt], start);
-            cnt++;
-        }
-    }
-    // printf("now is step2 %s\n",argVec[cnt-1]);
-    argVec[cnt] = NULL;
-    snprintf(path1, sizeof(path1), "%s/%s", buff, cmd->command);//第一階段path+argv
-    cnt = 0;
-    // printf("now is step3 \n");
-    while ((start = strsep(&command2, " ")) != NULL) {
-        if (*start != '\0') {
-            if(cnt == 0){
-                snprintf(path2, sizeof(path2), "%s/%s", buff, start);//第一階段path+argv
-            }
-            argVec1[cnt] = malloc(strlen(start) + 1);
-            strcpy(argVec1[cnt], start);
-            cnt++;
-        }
-    }
-    argVec1[cnt] = NULL;
+    strcpy(countpipe,cmd->paramater);
+    number_of_pipe = count_pipes(countpipe);
+    number_of_pipe++;
+    char ***argVec;//[2][10];
+    char **path;
 
-    if (access(path2, X_OK) != 0) {
-        printf("Unknown command: [%s].\n",argVec1[0]);
-        
-        return -1;
+    argVec=malloc(sizeof(char **) * number_of_pipe);
+    path=malloc(sizeof(char *)*number_of_pipe);
+    fd=malloc(sizeof(int *) * number_of_pipe);
+    for(int i=0;i<number_of_pipe;i++){
+        argVec[i]=malloc(sizeof(char *) * 10);
     }
-    //fork()執行
-    if ( (pipe(fd) == -1) )  {
-        perror("pipe");
-        return -1;
-    }
-    // printf("now is step4 \n");
-    pid_t childPid;
-    switch (fork()) {
-        case -1:
-            perror("fork\n");
-            exit(EXIT_FAILURE);
-        case 0:{
-            dochild(fd,argVec,path1,cmd);
-            break;
+    
+    // printf("%d\n",number_of_pipe);
+    // printf("%s\n%s\n",cmd->command,cmd->paramater);
+    strcpy(tmpvar,cmd->paramater);
+    for(int i=0;i<number_of_pipe;i++){
+        cntnum=0;
+        if(i==0){//做paramater的
+            path[i] = malloc(sizeof(char) * 100);
+            snprintf(path[i],100, "%s/%s", buff, cmd->command);
+            if(check_access(path[i])==-1){
+                printf("Unknown command: [%s].\n",cmd->command);
+                pos = strchr(cmd->paramater, '|');
+                if(pos == NULL){
+                    return 1;
+                }
+                pos+=2;
+                sscanf(pos, "%s", cmd->command);
+                pos= pos +(strlen(cmd->command)); 
+                if(strlen(pos) != 0){
+                    pos+1;
+                    strcpy(cmd->paramater,pos);
+                    strcpy(tmpvar,cmd->paramater);
+                }
+                else {
+                    strcpy(cmd->paramater,"");
+                    strcpy(tmpvar,"");
+                }
+                free(path[i]);
+                i--;
+                number_of_pipe--;
+                continue;
+                
+            }
+            argVec[i][0] = malloc(strlen(cmd->command) + 1);
+            strcpy(argVec[i][0],cmd->command);
+            if(strcmp(tmpvar,"")==0){
+                cntnum++;
+                argVec[i][cntnum]=NULL;
+                break;
+            }
+
+            sscanf(tmpvar, "%s", pointer);
+            cntnum++;
+            while(strcmp(pointer,"|")!=0){
+                argVec[i][cntnum] = malloc(strlen(pointer) + 1);
+                strcpy(argVec[i][cntnum],pointer);
+                cntnum++;
+                tmpvar = tmpvar+strlen(pointer)+1;
+                sscanf(tmpvar, "%s", pointer);
+            }
+            argVec[i][cntnum]=NULL;
+            continue;
         }
-        default:
-            sleep(0.5);// Give child a chance to execute childpid大於0代表你是父親
-            doparent(fd,argVec1,path2,cmd);
-            break;
+        sscanf(tmpvar, "%s", pointer);
+        if(strcmp(pointer,"|")==0){
+            tmpvar+=2;
+            sscanf(tmpvar, "%s", pointer);
+        }
+        while(strcmp(pointer,"|")!=0){
+            tmpvar = tmpvar+strlen(pointer)+1;
+            if(cntnum == 0){
+                path[i] = malloc(sizeof(char) * 100);
+                snprintf(path[i], 100 , "%s/%s", buff, pointer);
+                if(check_access(path[i])==-1){
+                    printf("Unknown command: [%s].\n",pointer);
+                    pos = strchr(tmpvar, '|');
+                    if(pos == NULL){
+                        break;
+                    }
+                    pos+=2;
+                    sscanf(pos, "%s", cmd->command);
+                    pos= pos +(strlen(cmd->command));
+                    if(strlen(pos) != 0){
+                        strcpy(cmd->paramater,pos);
+                        strcpy(tmpvar,pos);
+                    }
+                    else {
+                        strcpy(cmd->paramater,"");
+                        strcpy(tmpvar,"");
+                    }
+                    for(int n=0;n<i;n++){
+                        free(path[n]);
+                        int cnt=0;
+                        while(argVec[n][cnt]!=NULL){
+                            free(argVec[n][cnt]);
+                            cnt++;
+                        }
+                    }
+                    number_of_pipe=number_of_pipe-i-1;
+                    i=-1;
+                    // firstflag=0;
+                    break;
+                }
+            }
+            argVec[i][cntnum] = malloc(strlen(pointer) + 1);
+            strcpy(argVec[i][cntnum],pointer);
+            cntnum++;
+            if(strcmp(tmpvar,"\0")==0){
+                argVec[i][cntnum]=NULL;
+                break;
+            }
+            sscanf(tmpvar, "%s", pointer);
+        }
     }
-        int status;
+
+    if(number_of_pipe == 1){
+        exenonbuildin(cmd);
+            return 1;
+    }
+    else if(number_of_pipe == 0){
+        printf("Unknown command: [%s].\n",cmd->command);
+        return 1;
+    }
+    
+    for(int i = 0; i< number_of_pipe-1; i++){
+        fd[i] = (int *)malloc(sizeof(int) *2);
+        if ( (pipe(fd[i]) == -1) )  {
+            perror("pipe");
+            return -1;
+        }
+    }
+
+    //************************for迴圈接pipe每次執行完才給下一個process執行
+    pid_t childPid;
+    int cur=0;
+    int whom;
+    for(int i=0;i<number_of_pipe;i++){
+        whom = fork();
+        if(whom == -1){
+             perror("fork\n");
+            exit(EXIT_FAILURE);
+        }
+        else if(whom == 0){
+            if(i==0){
+                close(fd[cur][READ_END]);
+                dup2(fd[cur][WRITE_END], STDOUT_FILENO);
+            }
+            else if(i == number_of_pipe-1){
+                dup2(fd[cur][READ_END], STDIN_FILENO);
+                close(fd[cur][READ_END]);
+            }
+            else{//
+                dup2(fd[cur][READ_END], STDIN_FILENO);
+                dup2(fd[cur+1][WRITE_END], STDOUT_FILENO);
+                close(fd[cur][READ_END]);
+            }
+            if(strcmp(argVec[i][0], "printenv") == 0 || strcmp(argVec[i][0], "help") == 0){//pipe 配上 buildin
+                if(strcmp(argVec[i][0], "printenv") == 0)
+                    printenv(argVec[i][1]);
+                else
+                    help();
+                exit(EXIT_SUCCESS);
+            }
+            if (execv(path[i], argVec[i]) < 0) {
+                perror("execv child");
+                exit(EXIT_FAILURE);
+            }
+            exit(EXIT_SUCCESS);
+        }
+        else{
+            sleep(0.1);
+            if(i==0){
+                close(fd[cur][WRITE_END]);
+            }
+            else if(i == number_of_pipe-1){
+                close(fd[cur][WRITE_END]);
+                close(fd[cur][READ_END]);
+            }
+            else{
+                close(fd[cur][READ_END]);
+                close(fd[cur+1][WRITE_END]);
+                cur++;
+            }
+        }
+        
+    }
+    int status;
     while(1){//
         childPid = waitpid(-1, &status, WNOHANG);
+
         if (childPid == -1) {
             if (errno == ECHILD) {
                 // printf("No more children - bye!\n");
@@ -124,5 +239,8 @@ int exepipe(command_t *cmd){
             }
         }
     }
+        
+
     return 1;
 }
+

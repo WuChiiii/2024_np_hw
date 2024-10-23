@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "輸入程式名稱，例如 ${workspaceFolder}/a.out",
+            "program": "輸入程式名稱，例如 ${workspaceFolder}/bin/shell",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

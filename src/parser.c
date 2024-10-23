@@ -37,93 +37,13 @@ void isPipe(command_t *cmd){
     char *pos;
     char *check;
     char * tmp;
-    char  tmpstr[1024];
+    char  tmpstr[100];
     int x;
-    if(cmd->exeflag==-1){
-        pos = strchr(cmd->paramater, '|');
-        if(pos==NULL){//沒有pipe
-            return;
-        }
-        printf("Unknown command: [%s].\n",cmd->command);
-        if(pos[1]!=' ') return;
-        pos+=2;
-        check = strchr(pos, '|');
-        if(check == NULL){//tp | ls
-            sscanf(pos, "%s", cmd->command);
-            x = strlen(cmd->command)+1;
-            if(strlen(cmd->command)==strlen(pos)){
-            strcpy(cmd->paramater,"");
-            }
-            else
-                sscanf(pos+x, "%[^\n]", cmd->paramater);
-            // printf("%s\n%s\n%s\n",pos,cmd->command,cmd->paramater);
-            cmd->exeflag = -1;
-            isBuildin(cmd);
-            isNonBuildin(cmd);
-            return;
-        }
-        // printf("help %s\n%s\n%s\n",pos,cmd->command,cmd->paramater); 
-        sscanf(pos, "%s", cmd->command);
-        x = strlen(cmd->command)+1;
-        if(strlen(cmd->command)==strlen(pos)){
-            strcpy(cmd->paramater,"");
-        }
-        sscanf(pos+x, "%[^\n]", cmd->paramater);
-        isBuildin(cmd);
-        isNonBuildin(cmd);
-        // printf("help %s\n%s\n%s\n",pos,cmd->command,cmd->paramater);                            
-        if(cmd->exeflag == -1){
-            tmp = strchr(cmd->paramater, '|');
-            tmp += 2;
-            // printf("test bug:\n%s\n%s\n%s\nend\n",tmp,cmd->paramater,cmd->command);
-            printf("Unknown command: [%s].\n",cmd->command);
-            sscanf(tmp, "%s", cmd->command);
-            x = strlen(cmd->command)+1;
-            if(strlen(cmd->command)==strlen(tmp)){
-                strcpy(cmd->paramater,"");
-            }else{
-                sscanf(tmp+x, "%[^\n]", cmd->paramater);
-            }
-            isBuildin(cmd);
-            isNonBuildin(cmd);
-        }
-        else
-            cmd->exeflag =2;
-        return;
-        
-    }
-    // printf("it's inout\n");
-    
     //check if it is pipe or a numpipe (if numpipe else pipe)
     pos = strchr(cmd->paramater, '|');
     if(pos != NULL){
         if(pos[1] == ' '){
             cmd->exeflag =2;
-            pos+=2;
-            check = strchr(pos, '|');
-            if(check == NULL){
-                return;
-            }
-            check+=2;
-            char buff[1024];
-            char path[1024];
-            sscanf(pos, "%s", tmpstr);//popo(第二層command)
-            sscanf(check, "%s", cmd->command);
-            x = strlen(cmd->command)+1;
-            if(strlen(cmd->command)==strlen(check)){
-                strcpy(cmd->paramater,"");
-            }
-            else
-                sscanf(check+x, "%[^\n]", cmd->paramater);
-            getcwd(buff, sizeof(buff));
-            snprintf(path, sizeof(path), "%s/%s", buff, cmd->command);
-
-            if (access(path, X_OK) == 0) {
-                printf("Unknown command: [%s].\n",tmpstr);
-                cmd->exeflag =1;
-            } else {
-                cmd->exeflag =-1;
-            }
             return;
         }
         else{

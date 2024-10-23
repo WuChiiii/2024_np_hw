@@ -1,7 +1,0 @@
-cat
-data.txt
-grep
-ls
-number
-numpie.txt
-shell
